@@ -83,7 +83,7 @@ class Api(object):
             raise ValueError(
                 '"private_key" and "private_key_file" cannot be used together.'
             )
-        base_url = "{}/api".format(url if url[-1] != "/" else url[:-1])
+        base_url = f'{url if url[-1] != "/" else url[:-1]}/api'
         self.token = token
         self.private_key = private_key
         self.private_key_file = private_key_file
@@ -131,11 +131,10 @@ class Api(object):
         '3.1'
         >>>
         """
-        version = Request(
+        return Request(
             base=self.base_url,
             http_session=self.http_session,
         ).get_version()
-        return version
 
     def openapi(self):
         """Returns the OpenAPI spec.
@@ -187,12 +186,11 @@ class Api(object):
          'rq-workers-running': 1}
         >>>
         """
-        status = Request(
+        return Request(
             base=self.base_url,
             token=self.token,
             http_session=self.http_session,
         ).get_status()
-        return status
 
     def create_token(self, username, password):
         """Creates an API token using a valid NetBox username and password.
@@ -227,9 +225,10 @@ class Api(object):
         >>>
         """
         resp = Request(
-            base="{}/users/tokens/provision/".format(self.base_url),
+            base=f"{self.base_url}/users/tokens/provision/",
             http_session=self.http_session,
         ).post(data={"username": username, "password": password})
+
         # Save the newly created API token, otherwise populating the Record
         # object details will fail
         self.token = resp["key"]

@@ -25,12 +25,13 @@ from pynetbox.models.circuits import Circuits
 class TraceableRecord(Record):
     def trace(self):
         req = Request(
-            key=str(self.id) + "/trace",
+            key=f"{str(self.id)}/trace",
             base=self.endpoint.url,
             token=self.api.token,
             session_key=self.api.session_key,
             http_session=self.api.http_session,
         ).get()
+
         uri_to_obj_class_map = {
             "dcim/cables": Cables,
             "dcim/front-ports": FrontPorts,
@@ -214,10 +215,7 @@ class Termination(Record):
         # hacky check to see if we're a circuit termination to
         # avoid another call to NetBox because of a non-existent attr
         # in self.name
-        if "circuit" in str(self.url):
-            return self.circuit.cid
-
-        return self.name
+        return self.circuit.cid if "circuit" in str(self.url) else self.name
 
     device = Devices
     circuit = Circuits
@@ -226,13 +224,11 @@ class Termination(Record):
 class Cables(Record):
     def __str__(self):
         if all(
-            [
-                isinstance(i, Termination)
-                for i in (self.termination_a, self.termination_b)
-            ]
+            isinstance(i, Termination)
+            for i in (self.termination_a, self.termination_b)
         ):
-            return "{} <> {}".format(self.termination_a, self.termination_b)
-        return "Cable #{}".format(self.id)
+            return f"{self.termination_a} <> {self.termination_b}"
+        return f"Cable #{self.id}"
 
     termination_a = Termination
     termination_b = Termination

@@ -93,11 +93,12 @@ class App(object):
             return self._choices
 
         self._choices = Request(
-            base="{}/{}/_choices/".format(self.api.base_url, self.name),
+            base=f"{self.api.base_url}/{self.name}/_choices/",
             token=self.api.token,
             private_key=self.api.private_key,
             http_session=self.api.http_session,
         ).get()
+
 
         return self._choices
 
@@ -118,16 +119,12 @@ class App(object):
         {'Testfield1': {'Testvalue2': 2, 'Testvalue1': 1},
          'Testfield2': {'Othervalue2': 4, 'Othervalue1': 3}}
         """
-        custom_field_choices = Request(
-            base="{}/{}/_custom_field_choices/".format(
-                self.api.base_url,
-                self.name,
-            ),
+        return Request(
+            base=f"{self.api.base_url}/{self.name}/_custom_field_choices/",
             token=self.api.token,
             private_key=self.api.private_key,
             http_session=self.api.http_session,
         ).get()
-        return custom_field_choices
 
     def config(self):
         """Returns config response from app
@@ -145,16 +142,12 @@ class App(object):
                                                 'primary_ip',
                                                 'tags']}}}
         """
-        config = Request(
-            base="{}/{}/config/".format(
-                self.api.base_url,
-                self.name,
-            ),
+        return Request(
+            base=f"{self.api.base_url}/{self.name}/config/",
             token=self.api.token,
             private_key=self.api.private_key,
             http_session=self.api.http_session,
         ).get()
-        return config
 
 
 class PluginsApp(object):
@@ -176,7 +169,7 @@ class PluginsApp(object):
         self.__dict__.update(d)
 
     def __getattr__(self, name):
-        return App(self.api, "plugins/{}".format(name.replace("_", "-")))
+        return App(self.api, f'plugins/{name.replace("_", "-")}')
 
     def installed_plugins(self):
         """Returns raw response with installed plugins
@@ -193,12 +186,9 @@ class PluginsApp(object):
             'verison': '0.10'
         }]
         """
-        installed_plugins = Request(
-            base="{}/plugins/installed-plugins".format(
-                self.api.base_url,
-            ),
+        return Request(
+            base=f"{self.api.base_url}/plugins/installed-plugins",
             token=self.api.token,
             private_key=self.api.private_key,
             http_session=self.api.http_session,
         ).get()
-        return installed_plugins

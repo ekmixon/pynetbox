@@ -68,10 +68,9 @@ class Endpoint(object):
         """
         if model:
             name = name.title().replace("_", "")
-            ret = getattr(model, name, Record)
+            return getattr(model, name, Record)
         else:
-            ret = Record
-        return ret
+            return Record
 
     def all(self, limit=0, offset=None):
         """Queries the 'ListView' of a given endpoint.
@@ -98,7 +97,7 @@ class Endpoint(object):
         if limit == 0 and offset is not None:
             raise ValueError("offset requires a positive limit value")
         req = Request(
-            base="{}/".format(self.url),
+            base=f"{self.url}/",
             token=self.token,
             session_key=self.session_key,
             http_session=self.api.http_session,
@@ -106,6 +105,7 @@ class Endpoint(object):
             limit=limit,
             offset=offset,
         )
+
 
         return RecordSet(self, req)
 
@@ -236,13 +236,13 @@ class Endpoint(object):
         """
 
         if args:
-            kwargs.update({"q": args[0]})
+            kwargs["q"] = args[0]
 
         if any(i in RESERVED_KWARGS for i in kwargs):
             raise ValueError(
-                "A reserved kwarg was passed ({}). Please remove it "
-                "and try again.".format(RESERVED_KWARGS)
+                f"A reserved kwarg was passed ({RESERVED_KWARGS}). Please remove it and try again."
             )
+
         limit = kwargs.pop("limit") if "limit" in kwargs else 0
         offset = kwargs.pop("offset") if "offset" in kwargs else None
         if limit == 0 and offset is not None:
@@ -355,22 +355,20 @@ class Endpoint(object):
         series = []
         if not isinstance(objects, list):
             raise ValueError(
-                "Objects passed must be list[dict|Record] - was " + type(objects)
+                f"Objects passed must be list[dict|Record] - was {type(objects)}"
             )
+
         for o in objects:
             if isinstance(o, Record):
-                data = o.updates()
-                if data:
+                if data := o.updates():
                     data["id"] = o.id
                     series.append(data)
             elif isinstance(o, dict):
                 if "id" not in o:
-                    raise ValueError("id is missing from object: " + str(o))
+                    raise ValueError(f"id is missing from object: {str(o)}")
                 series.append(o)
             else:
-                raise ValueError(
-                    "Object passed must be dict|Record - was " + type(objects)
-                )
+                raise ValueError(f"Object passed must be dict|Record - was {type(objects)}")
         req = Request(
             base=self.url,
             token=self.token,
@@ -433,8 +431,9 @@ class Endpoint(object):
                 cleaned_ids.append(o.id)
             else:
                 raise ValueError(
-                    "Invalid object in list of " "objects to delete: " + str(type(o))
+                    f"Invalid object in list of objects to delete: {str(type(o))}"
                 )
+
 
         req = Request(
             base=self.url,
@@ -442,7 +441,7 @@ class Endpoint(object):
             session_key=self.session_key,
             http_session=self.api.http_session,
         )
-        return True if req.delete(data=[{"id": i} for i in cleaned_ids]) else False
+        return bool(req.delete(data=[{"id": i} for i in cleaned_ids]))
 
     def choices(self):
         """Returns all choices from the endpoint.
@@ -485,13 +484,12 @@ class Endpoint(object):
         try:
             post_data = req["actions"]["POST"]
         except KeyError:
-            raise ValueError(
-                "Unexpected format in the OPTIONS response at {}".format(self.url)
-            )
-        self._choices = {}
-        for prop in post_data:
-            if "choices" in post_data[prop]:
-                self._choices[prop] = post_data[prop]["choices"]
+            raise ValueError(f"Unexpected format in the OPTIONS response at {self.url}")
+        self._choices = {
+            prop: post_data[prop]["choices"]
+            for prop in post_data
+            if "choices" in post_data[prop]
+        }
 
         return self._choices
 
@@ -527,13 +525,13 @@ class Endpoint(object):
         """
 
         if args:
-            kwargs.update({"q": args[0]})
+            kwargs["q"] = args[0]
 
         if any(i in RESERVED_KWARGS for i in kwargs):
             raise ValueError(
-                "A reserved {} kwarg was passed. Please remove it "
-                "try again.".format(RESERVED_KWARGS)
+                f"A reserved {RESERVED_KWARGS} kwarg was passed. Please remove it try again."
             )
+
 
         ret = Request(
             filters=kwargs,
@@ -556,7 +554,7 @@ class DetailEndpoint(object):
     def __init__(self, parent_obj, name, custom_return=None):
         self.parent_obj = parent_obj
         self.custom_return = custom_return
-        self.url = "{}/{}/{}/".format(parent_obj.endpoint.url, parent_obj.id, name)
+        self.url = f"{parent_obj.endpoint.url}/{parent_obj.id}/{name}/"
         self.request_kwargs = dict(
             base=self.url,
             token=parent_obj.api.token,

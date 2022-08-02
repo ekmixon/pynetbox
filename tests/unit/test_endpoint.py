@@ -86,8 +86,8 @@ class EndPointTestCase(unittest.TestCase):
 
     def test_delete_with_objects(self):
         with patch(
-            "pynetbox.core.query.Request._make_call", return_value=Mock()
-        ) as mock:
+                "pynetbox.core.query.Request._make_call", return_value=Mock()
+            ) as mock:
             from pynetbox.core.response import Record
 
             ids = [1, 3, 5]
@@ -96,23 +96,28 @@ class EndPointTestCase(unittest.TestCase):
             app = Mock(name="test")
             test_obj = Endpoint(api, app, "test")
             objects = [
-                Record({"id": i, "name": "dummy" + str(i)}, api, test_obj) for i in ids
+                Record({"id": i, "name": f"dummy{str(i)}"}, api, test_obj)
+                for i in ids
             ]
+
             test = test_obj.delete(objects)
             mock.assert_called_with(verb="delete", data=[{"id": i} for i in ids])
             self.assertTrue(test)
 
     def test_delete_with_recordset(self):
         with patch(
-            "pynetbox.core.query.Request._make_call", return_value=Mock()
-        ) as mock:
+                "pynetbox.core.query.Request._make_call", return_value=Mock()
+            ) as mock:
             from pynetbox.core.response import RecordSet
 
             ids = [1, 3, 5]
 
+
+
             class FakeRequest:
                 def get(self):
-                    return iter([{"id": i, "name": "dummy" + str(i)} for i in ids])
+                    return iter([{"id": i, "name": f"dummy{str(i)}"} for i in ids])
+
 
             mock.return_value = True
             api = Mock(base_url="http://localhost:8000/api")
@@ -147,8 +152,8 @@ class EndPointTestCase(unittest.TestCase):
 
     def test_bulk_update_records(self):
         with patch(
-            "pynetbox.core.query.Request._make_call", return_value=Mock()
-        ) as mock:
+                "pynetbox.core.query.Request._make_call", return_value=Mock()
+            ) as mock:
             from pynetbox.core.response import Record
 
             ids = [1, 3, 5]
@@ -158,27 +163,30 @@ class EndPointTestCase(unittest.TestCase):
             test_obj = Endpoint(api, app, "test")
             objects = [
                 Record(
-                    {"id": i, "name": "dummy" + str(i), "unchanged": "yes"},
+                    {"id": i, "name": f"dummy{str(i)}", "unchanged": "yes"},
                     api,
                     test_obj,
                 )
                 for i in ids
             ]
+
             for o in objects:
-                o.name = "fluffy" + str(o.id)
+                o.name = f"fluffy{str(o.id)}"
             mock.return_value = [o.serialize() for o in objects]
             test = test_obj.update(objects)
             mock.assert_called_with(
-                verb="patch", data=[{"id": i, "name": "fluffy" + str(i)} for i in ids]
+                verb="patch",
+                data=[{"id": i, "name": f"fluffy{str(i)}"} for i in ids],
             )
+
             self.assertTrue(test)
 
     def test_bulk_update_json(self):
         with patch(
-            "pynetbox.core.query.Request._make_call", return_value=Mock()
-        ) as mock:
+                "pynetbox.core.query.Request._make_call", return_value=Mock()
+            ) as mock:
             ids = [1, 3, 5]
-            changes = [{"id": i, "name": "puffy" + str(i)} for i in ids]
+            changes = [{"id": i, "name": f"puffy{str(i)}"} for i in ids]
             mock.return_value = True
             api = Mock(base_url="http://localhost:8000/api")
             app = Mock(name="test")

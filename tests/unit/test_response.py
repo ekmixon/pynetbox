@@ -374,8 +374,10 @@ class RecordSetTestCase(unittest.TestCase):
     @classmethod
     def init_recordset(cls):
         data = [
-            {"id": i, "name": "dummy" + str(i), "status": "active"} for i in cls.ids
+            {"id": i, "name": f"dummy{str(i)}", "status": "active"}
+            for i in cls.ids
         ]
+
         api = Mock(base_url="http://localhost:8000/api")
         app = Mock(name="test")
 
@@ -402,12 +404,13 @@ class RecordSetTestCase(unittest.TestCase):
 
     def test_update(self):
         with patch(
-            "pynetbox.core.query.Request._make_call", return_value=Mock()
-        ) as mock:
+                "pynetbox.core.query.Request._make_call", return_value=Mock()
+            ) as mock:
             mock.return_value = [
-                {"id": i, "name": "dummy" + str(i), "status": "offline"}
+                {"id": i, "name": f"dummy{str(i)}", "status": "offline"}
                 for i in RecordSetTestCase.ids
             ]
+
             test_obj = RecordSetTestCase.init_recordset()
             test = test_obj.update(status="offline")
             mock.assert_called_with(

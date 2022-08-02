@@ -45,20 +45,14 @@ class RequestError(Exception):
 
     def __init__(self, req):
         if req.status_code == 404:
-            self.message = "The requested url: {} could not be found.".format(req.url)
+            self.message = f"The requested url: {req.url} could not be found."
         else:
             try:
-                self.message = "The request failed with code {} {}: {}".format(
-                    req.status_code, req.reason, req.json()
-                )
+                self.message = f"The request failed with code {req.status_code} {req.reason}: {req.json()}"
+
             except ValueError:
-                self.message = (
-                    "The request failed with code {} {} but more specific "
-                    "details were not returned in json. Check the NetBox Logs "
-                    "or investigate this exception's error attribute.".format(
-                        req.status_code, req.reason
-                    )
-                )
+                self.message = f"The request failed with code {req.status_code} {req.reason} but more specific details were not returned in json. Check the NetBox Logs or investigate this exception's error attribute."
+
 
         super(RequestError, self).__init__(req)
         self.req = req
@@ -158,7 +152,7 @@ class Request(object):
         self.private_key = private_key
         self.session_key = session_key
         self.http_session = http_session
-        self.url = self.base if not key else "{}{}/".format(self.base, key)
+        self.url = f"{self.base}{key}/" if key else self.base
         self.threading = threading
         self.limit = limit
         self.offset = offset
@@ -169,9 +163,9 @@ class Request(object):
             "Content-Type": "application/json;",
         }
         req = self.http_session.get(
-            "{}docs/?format=openapi".format(self.normalize_url(self.base)),
-            headers=headers,
+            f"{self.normalize_url(self.base)}docs/?format=openapi", headers=headers
         )
+
         if req.ok:
             return req.json()
         else:
@@ -208,21 +202,21 @@ class Request(object):
         :Returns: String containing session key.
         """
         req = self.http_session.post(
-            "{}secrets/get-session-key/?preserve_key=True".format(self.base),
+            f"{self.base}secrets/get-session-key/?preserve_key=True",
             headers={
                 "accept": "application/json",
-                "authorization": "Token {}".format(self.token),
+                "authorization": f"Token {self.token}",
                 "Content-Type": "application/x-www-form-urlencoded",
             },
             data=urlencode({"private_key": self.private_key.strip("\n")}),
         )
-        if req.ok:
-            try:
-                return req.json()["session_key"]
-            except json.JSONDecodeError:
-                raise ContentError(req)
-        else:
+
+        if not req.ok:
             raise RequestError(req)
+        try:
+            return req.json()["session_key"]
+        except json.JSONDecodeError:
+            raise ContentError(req)
 
     def get_status(self):
         """Gets the status from /api/status/ endpoint in NetBox.
@@ -232,11 +226,11 @@ class Request(object):
         """
         headers = {"Content-Type": "application/json;"}
         if self.token:
-            headers["authorization"] = "Token {}".format(self.token)
+            headers["authorization"] = f"Token {self.token}"
         req = self.http_session.get(
-            "{}status/".format(self.normalize_url(self.base)),
-            headers=headers,
+            f"{self.normalize_url(self.base)}status/", headers=headers
         )
+
         if req.ok:
             return req.json()
         else:
@@ -244,10 +238,7 @@ class Request(object):
 
     def normalize_url(self, url):
         """Builds a url for POST actions."""
-        if url[-1] != "/":
-            return "{}/".format(url)
-
-        return url
+        return f"{url}/" if url[-1] != "/" else url
 
     def _make_call(self, verb="get", url_override=None, add_params=None, data=None):
         if verb in ("post", "put") or verb == "delete" and data:
@@ -256,14 +247,14 @@ class Request(object):
             headers = {"accept": "application/json;"}
 
         if self.token:
-            headers["authorization"] = "Token {}".format(self.token)
+            headers["authorization"] = f"Token {self.token}"
         if self.session_key:
             headers["X-Session-Key"] = self.session_key
 
         params = {}
         if not url_override:
             if self.filters:
-                params.update(self.filters)
+                params |= self.filters
             if add_params:
                 params.update(add_params)
 
@@ -273,18 +264,15 @@ class Request(object):
 
         if req.status_code in [204, 409] and verb == "post":
             raise AllocationError(req)
-        if verb == "delete":
-            if req.ok:
-                return True
-            else:
-                raise RequestError(req)
-        elif req.ok:
+        if verb == "delete" and req.ok:
+            return True
+        elif verb == "delete" or not req.ok:
+            raise RequestError(req)
+        else:
             try:
                 return req.json()
             except json.JSONDecodeError:
                 raise ContentError(req)
-        else:
-            raise RequestError(req)
 
     def concurrent_get(self, ret, page_size, page_offsets):
         futures_to_results = []
@@ -322,8 +310,7 @@ class Request(object):
             self.count = req["count"]
             if self.offset is not None:
                 # only yield requested page results if paginating
-                for i in req["results"]:
-                    yield i
+                yield from req["results"]
             elif self.threading:
                 ret = req["results"]
                 if req.get("next"):
@@ -337,12 +324,10 @@ class Request(object):
                         ret.extend(req["results"])
                     else:
                         self.concurrent_get(ret, page_size, page_offsets)
-                for i in ret:
-                    yield i
+                yield from ret
             else:
                 first_run = True
-                for i in req["results"]:
-                    yield i
+                yield from req["results"]
                 while req["next"]:
                     # Not worrying about making sure add_params kwargs is
                     # passed in here because results from detail routes aren't
@@ -357,12 +342,10 @@ class Request(object):
                     else:
                         req = self._make_call(url_override=req["next"])
                     first_run = False
-                    for i in req["results"]:
-                        yield i
+                    yield from req["results"]
         elif isinstance(req, list):
             self.count = len(req)
-            for i in req:
-                yield i
+            yield from req
         else:
             self.count = len(req)
             yield req

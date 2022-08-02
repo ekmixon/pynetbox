@@ -91,11 +91,9 @@ class TestSite(BaseTest):
     @pytest.fixture(scope="class")
     def add_sites(self, api):
         sites = api.dcim.sites.create(
-            [
-                {"name": "test{}".format(i), "slug": "test{}".format(i)}
-                for i in range(2, 20)
-            ]
+            [{"name": f"test{i}", "slug": f"test{i}"} for i in range(2, 20)]
         )
+
         yield
         for i in sites:
             i.delete()
@@ -195,14 +193,12 @@ class TestPowerCable(BaseTest):
             device_type=device_type.id,
             site=site.id,
         )
-        outlet = api.dcim.power_outlets.create(name="outlet", device=pdu.id)
-        yield outlet
+        yield api.dcim.power_outlets.create(name="outlet", device=pdu.id)
         pdu.delete()
 
     @pytest.fixture(scope="class")
     def power_port(self, api, device):
-        ret = api.dcim.power_ports.create(name="PSU1", device=device.id)
-        yield ret
+        yield api.dcim.power_ports.create(name="PSU1", device=device.id)
 
     @pytest.fixture(scope="class")
     def power_cable(self, api, power_outlet, power_port):
@@ -235,14 +231,12 @@ class TestConsoleCable(BaseTest):
             device_type=device_type.id,
             site=site.id,
         )
-        ret = api.dcim.console_server_ports.create(name="Port 1", device=device.id)
-        yield ret
+        yield api.dcim.console_server_ports.create(name="Port 1", device=device.id)
         device.delete()
 
     @pytest.fixture(scope="class")
     def console_port(self, api, device):
-        ret = api.dcim.console_ports.create(name="Console", device=device.id)
-        yield ret
+        yield api.dcim.console_ports.create(name="Console", device=device.id)
 
     @pytest.fixture(scope="class")
     def console_cable(self, api, console_port, console_server_port):
@@ -275,18 +269,17 @@ class TestInterfaceCable(BaseTest):
             device_type=device_type.id,
             site=site.id,
         )
-        ret = api.dcim.interfaces.create(
+        yield api.dcim.interfaces.create(
             name="Ethernet1", type="1000base-t", device=device.id
         )
-        yield ret
+
         device.delete()
 
     @pytest.fixture(scope="class")
     def interface_a(self, api, device):
-        ret = api.dcim.interfaces.create(
+        yield api.dcim.interfaces.create(
             name="Ethernet1", type="1000base-t", device=device.id
         )
-        yield ret
 
     @pytest.fixture(scope="class")
     def interface_cable(self, api, interface_a, interface_b):

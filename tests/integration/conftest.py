@@ -28,16 +28,15 @@ def get_netbox_docker_version_tag(netbox_version):
     """
     major, minor = netbox_version.major, netbox_version.minor
 
-    if (major, minor) == (3, 1):
-        tag = "1.5.1"
-    elif (major, minor) == (3, 0):
+    if (major, minor) in [(3, 1), (3, 0)]:
         tag = "1.5.1"
     elif (major, minor) == (2, 11):
         tag = "1.2.0"
     else:
         raise NotImplementedError(
-            "Version %s is not currently supported" % netbox_version
+            f"Version {netbox_version} is not currently supported"
         )
+
 
     return tag
 
@@ -83,8 +82,9 @@ def netbox_docker_repo_dirpaths(pytestconfig, git_toplevel):
     for netbox_version in pytestconfig.option.netbox_versions:
         repo_version_tag = get_netbox_docker_version_tag(netbox_version=netbox_version)
         repo_fpath = os.path.join(
-            git_toplevel, ".netbox-docker-%s" % str(repo_version_tag)
+            git_toplevel, f".netbox-docker-{str(repo_version_tag)}"
         )
+
         if os.path.isdir(repo_fpath):
             subp.check_call(
                 ["git", "fetch"], cwd=repo_fpath, stdout=subp.PIPE, stderr=subp.PIPE
@@ -136,7 +136,7 @@ def docker_compose_project_name(pytestconfig):
     This will return a consistently generated project name so we can kill stale
     containers after the test run is finished.
     """
-    return "%s_%s" % (DOCKER_PROJECT_PREFIX, int(time.time()))
+    return f"{DOCKER_PROJECT_PREFIX}_{int(time.time())}"
 
 
 def clean_netbox_docker_tmpfiles():
@@ -215,20 +215,22 @@ def docker_compose_file(pytestconfig, netbox_docker_repo_dirpaths):
         for netbox_version in netbox_versions:
             # check for updates to the local netbox images
             subp.check_call(
-                ["docker", "pull", "netboxcommunity/netbox:v%s" % (netbox_version)],
+                [
+                    "docker",
+                    "pull",
+                    f"netboxcommunity/netbox:v{netbox_version}",
+                ],
                 stdout=subp.PIPE,
                 stderr=subp.PIPE,
             )
+
 
             docker_netbox_version = str(netbox_version).replace(".", "_")
             # load the compose file yaml
             compose_data = yaml.safe_load(open(compose_source_fpath, "r").read())
 
             # add the custom network for this version
-            docker_network_name = "%s_v%s" % (
-                DOCKER_PROJECT_PREFIX,
-                docker_netbox_version,
-            )
+            docker_network_name = f"{DOCKER_PROJECT_PREFIX}_v{docker_netbox_version}"
             compose_data["networks"] = {docker_network_name: {}}
             # https://docs.docker.com/compose/compose-file/compose-file-v3/#network-configuration-reference
             if compose_data["version"] >= "3.5":
@@ -240,17 +242,15 @@ def docker_compose_file(pytestconfig, netbox_docker_repo_dirpaths):
             # needed to make the continers unique to the netbox version
             new_services = {}
             for service_name in compose_data["services"].keys():
-                new_service_name = "netbox_v%s_%s" % (
-                    docker_netbox_version,
-                    service_name,
-                )
+                new_service_name = f"netbox_v{docker_netbox_version}_{service_name}"
                 new_services[new_service_name] = compose_data["services"][service_name]
 
                 if service_name in ["netbox", "netbox-worker"]:
                     # set the netbox image version
-                    new_services[new_service_name]["image"] = (
-                        "netboxcommunity/netbox:v%s" % netbox_version
-                    )
+                    new_services[new_service_name][
+                        "image"
+                    ] = f"netboxcommunity/netbox:v{netbox_version}"
+
 
                 if service_name == "netbox":
                     # ensure the netbox container listens on a random port
@@ -264,17 +264,13 @@ def docker_compose_file(pytestconfig, netbox_docker_repo_dirpaths):
 
                 # fix the naming of any dependencies
                 if "depends_on" in new_services[new_service_name]:
-                    new_service_dependencies = []
-                    for dependent_service_name in new_services[new_service_name][
-                        "depends_on"
-                    ]:
-                        new_service_dependencies.append(
-                            "netbox_v%s_%s"
-                            % (
-                                docker_netbox_version,
-                                dependent_service_name,
-                            )
-                        )
+                    new_service_dependencies = [
+                        f"netbox_v{docker_netbox_version}_{dependent_service_name}"
+                        for dependent_service_name in new_services[
+                            new_service_name
+                        ]["depends_on"]
+                    ]
+
                     new_services[new_service_name][
                         "depends_on"
                     ] = new_service_dependencies
@@ -302,35 +298,29 @@ def docker_compose_file(pytestconfig, netbox_docker_repo_dirpaths):
                                 new_volumes.append(volume_config)
                         else:
                             new_volumes.append(
-                                "%s_v%s_%s"
-                                % (
-                                    DOCKER_PROJECT_PREFIX,
-                                    docker_netbox_version,
-                                    volume_config,
-                                )
+                                f"{DOCKER_PROJECT_PREFIX}_v{docker_netbox_version}_{volume_config}"
                             )
+
                     new_services[new_service_name]["volumes"] = new_volumes
 
             # replace the services config with the renamed versions
             compose_data["services"] = new_services
 
             # prepend local volume names
-            new_volumes = {}
-            for volume_name, volume_config in compose_data["volumes"].items():
-                new_volumes[
-                    "%s_v%s_%s"
-                    % (
-                        DOCKER_PROJECT_PREFIX,
-                        docker_netbox_version,
-                        volume_name,
-                    )
-                ] = volume_config
+            new_volumes = {
+                f"{DOCKER_PROJECT_PREFIX}_v{docker_netbox_version}_{volume_name}": volume_config
+                for volume_name, volume_config in compose_data[
+                    "volumes"
+                ].items()
+            }
+
             compose_data["volumes"] = new_volumes
 
             compose_output_fpath = os.path.join(
                 netbox_docker_repo_dirpath,
-                "docker-compose-v%s.yml" % netbox_version,
+                f"docker-compose-v{netbox_version}.yml",
             )
+
             with open(compose_output_fpath, "w") as fdesc:
                 fdesc.write(yaml.dump(compose_data))
 
@@ -350,12 +340,7 @@ def netbox_is_responsive(url):
         response = requests.get(url)
         if response.status_code == 200:
             return True
-    except (
-        ConnectionError,
-        ConnectionResetError,
-        requests.exceptions.ConnectionError,
-        RemoteDisconnected,
-    ):
+    except (ConnectionError, requests.exceptions.ConnectionError):
         return False
 
 
@@ -366,7 +351,7 @@ def id_netbox_service(fixture_value):
         str: Identifiable representation of the service, as best we can
 
     """
-    return "netbox v%s" % fixture_value
+    return f"netbox v{fixture_value}"
 
 
 @pytest.fixture(scope="session")
@@ -423,7 +408,7 @@ def docker_netbox_service(
             )
         )
 
-    url = "http://{}:{}".format(docker_ip, port)
+    url = f"http://{docker_ip}:{port}"
     docker_services.wait_until_responsive(
         timeout=300.0, pause=1, check=lambda: netbox_is_responsive(url)
     )
@@ -502,15 +487,4 @@ def pytest_generate_tests(metafunc):
 @pytest.fixture(scope="session")
 def docker_cleanup(pytestconfig):
     """Override the docker cleanup command for the containsers used in testing."""
-    # pytest-docker does not always clean up after itself properly, and sometimes it
-    # will fail during cleanup because there is still a connection to one of the
-    # running containers. Here we will disable the builtin cleanup of containers via the
-    # pytest-docker module and implement our own instead.
-    # This is only relevant until https://github.com/avast/pytest-docker/pull/33 gets
-    # resolved.
-
-    # There is not a great way to skip the shutdown step, so in this case to skip
-    # it we will just pass the "version" arg so the containers are left alone
-    command_args = "version"
-
-    return command_args
+    return "version"

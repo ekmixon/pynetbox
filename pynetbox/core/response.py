@@ -43,23 +43,20 @@ def get_return(lookup, return_fields=None):
     for i in return_fields or ["id", "value", "nested_return"]:
         if isinstance(lookup, dict) and lookup.get(i):
             return lookup[i]
-        else:
-            if hasattr(lookup, i):
-                # check if this is a "choices" field record
-                # from a NetBox 2.7 server.
-                if sorted(dict(lookup)) == sorted(["id", "value", "label"]):
-                    return getattr(lookup, "value")
-                return getattr(lookup, i)
+        if hasattr(lookup, i):
+            # check if this is a "choices" field record
+            # from a NetBox 2.7 server.
+            if sorted(dict(lookup)) == sorted(["id", "value", "label"]):
+                return getattr(lookup, "value")
+            return getattr(lookup, i)
 
-    if isinstance(lookup, Record):
-        return str(lookup)
-    else:
-        return lookup
+    return str(lookup) if isinstance(lookup, Record) else lookup
 
 
 def flatten_custom(custom_dict):
     return {
-        k: v if not isinstance(v, dict) else v["value"] for k, v in custom_dict.items()
+        k: v["value"] if isinstance(v, dict) else v
+        for k, v in custom_dict.items()
     }
 
 
@@ -145,15 +142,11 @@ class RecordSet(object):
             # Update each record and determine if anything was updated
             for k, v in kwargs.items():
                 setattr(record, k, v)
-            record_updates = record.updates()
-            if record_updates:
+            if record_updates := record.updates():
                 # if updated, add the id to the dict and append to list of updates
                 record_updates["id"] = record.id
                 updates.append(record_updates)
-        if updates:
-            return self.endpoint.update(updates)
-        else:
-            return None
+        return self.endpoint.update(updates) if updates else None
 
     def delete(self):
         r"""Bulk deletes objects in a RecordSet.
@@ -288,14 +281,19 @@ class Record(object):
         In order to prevent non-explicit behavior,`k='keys'` is
         excluded because casting to dict() calls this attr.
         """
-        if self.url:
-            if self.has_details is False and k != "keys":
-                if self.full_details():
-                    ret = getattr(self, k, None)
-                    if ret or hasattr(self, k):
-                        return ret
+        if (
+            self.url
+            and self.has_details is False
+            and k != "keys"
+            and self.full_details()
+        ):
+            if ret := getattr(self, k, None):
+                return ret
 
-        raise AttributeError('object has no attribute "{}"'.format(k))
+            elif hasattr(self, k):
+                return ret
+
+        raise AttributeError(f'object has no attribute "{k}"')
 
     def __iter__(self):
         for i in dict(self._init_cache):
@@ -361,9 +359,8 @@ class Record(object):
                     # This is *list_parser*, so if the custom model field is not
                     # a list (or is not defined), just return the default model
                     return self.default_ret(list_item, self.api, self.endpoint)
-                else:
-                    model = lookup[0]
-                    return model(list_item, self.api, self.endpoint)
+                model = lookup[0]
+                return model(list_item, self.api, self.endpoint)
             return list_item
 
         for k, v in values.items():
@@ -452,7 +449,7 @@ class Record(object):
 
         ret = {}
         for i in dict(self):
-            current_val = getattr(self, i) if not init else init_vals.get(i)
+            current_val = init_vals.get(i) if init else getattr(self, i)
             if i == "custom_fields":
                 ret[i] = flatten_custom(current_val)
             else:
@@ -464,8 +461,8 @@ class Record(object):
                         v.id if isinstance(v, Record) else v for v in current_val
                     ]
                     if i in LIST_AS_SET and (
-                        all([isinstance(v, str) for v in current_val])
-                        or all([isinstance(v, int) for v in current_val])
+                        all(isinstance(v, str) for v in current_val)
+                        or all(isinstance(v, int) for v in current_val)
                     ):
                         current_val = list(OrderedDict.fromkeys(current_val))
                 ret[i] = current_val
@@ -475,15 +472,13 @@ class Record(object):
         def fmt_dict(k, v):
             if isinstance(v, dict):
                 return k, Hashabledict(v)
-            if isinstance(v, list):
-                return k, ",".join(map(str, v))
-            return k, v
+            return (k, ",".join(map(str, v))) if isinstance(v, list) else (k, v)
 
         current = Hashabledict({fmt_dict(k, v) for k, v in self.serialize().items()})
         init = Hashabledict(
             {fmt_dict(k, v) for k, v in self.serialize(init=True).items()}
         )
-        return set([i[0] for i in set(current.items()) ^ set(init.items())])
+        return {i[0] for i in set(current.items()) ^ set(init.items())}
 
     def updates(self):
         """Compiles changes for an existing object into a dict.
@@ -503,8 +498,7 @@ class Record(object):
         >>>
         """
         if self.id:
-            diff = self._diff()
-            if diff:
+            if diff := self._diff():
                 serialized = self.serialize()
                 return {i: serialized[i] for i in diff}
         return {}
@@ -526,8 +520,7 @@ class Record(object):
         True
         >>>
         """
-        updates = self.updates()
-        if updates:
+        if updates := self.updates():
             req = Request(
                 key=self.id,
                 base=self.endpoint.url,
@@ -582,4 +575,4 @@ class Record(object):
             session_key=self.api.session_key,
             http_session=self.api.http_session,
         )
-        return True if req.delete() else False
+        return bool(req.delete())
